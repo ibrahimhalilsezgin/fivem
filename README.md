@@ -1,23 +1,32 @@
-# ⚠️ WARNING: ACCOUNT BAN RISK
+![Status](https://img.shields.io/badge/Status-Educational_Only-blue)
+![Safety](https://img.shields.io/badge/Risk-Extremely_High-red)
 
-Using this software, even for testing purposes, on any network connected to official or community-driven game servers (e.g., FiveM, RedM, Rockstar Games) will almost certainly result in an immediate and permanent ban.
 
-Automated Detection: Modern anti-cheat systems (Cfx.re AC, BattlEye, Easy Anti-Cheat) scan for memory manipulations and injected code in real-time.
+## ⚖️ Legal Disclaimer / Sorumluluk Reddi
 
-Global Bans: A ban triggered by this tool may lead to a Global HWID Ban, preventing you from playing the game on that computer entirely, regardless of the account used.
+### English
+This software is provided "as is" for **educational and research purposes only**. 
+1. **No Guarantee:** The developer does not guarantee that this code is safe to run on any network-connected environment.
+2. **Liability:** In no event shall the developer be liable for any direct, indirect, or consequential damages (including, but not limited to, account bans, HWID bans, or loss of access to purchased games).
+3. **Usage:** By using or downloading this code, you agree that you are solely responsible for any consequences.
 
-No Support: The developer of this project will NOT provide assistance in appealing bans or bypassing hardware restrictions. Use only in a fully isolated, offline, or local sandbox environment.
+### Türkçe
+Bu yazılım "olduğu gibi" sunulmaktadır ve **sadece eğitim/araştırma amaçlıdır**.
+1. **Garanti Verilmez:** Geliştirici, bu kodun ağ bağlantısı olan herhangi bir ortamda çalıştırılmasının güvenli olduğuna dair garanti vermez.
+2. **Sorumluluk:** Geliştirici; hesap yasaklamaları (ban), donanım banları (HWID) veya satın alınan oyunlara erişim kaybı dahil ancak bunlarla sınırlı olmamak üzere hiçbir doğrudan veya dolaylı zarardan sorumlu tutulamaz.
+3. **Kullanım:** Bu kodu kullanarak veya indirerek, doğabilecek tüm sonuçlardan yalnızca kendinizin sorumlu olduğunu kabul etmiş sayılırsınız.
 
-I received a 14-day ban for running this project.
+---
 
-# ⚠️ UYARI: HESAP YASAKLANMA RİSKİ
+## 🛠️ Technical Details
+* **Focus:** Memory Manipulation & Hooking
+* **Target Environment:** Isolated / Offline Sandbox
+* **Risk Level:** 10/10 (High detection rate)
 
-Bu yazılımın resmi veya topluluk tabanlı oyun sunucularına (FiveM, RedM, Rockstar Games vb.) bağlı herhangi bir ağda kullanılması, test amaçlı olsa dahi, neredeyse kesinlikle anında ve kalıcı bir ban (yasaklanma) ile sonuçlanacaktır.
+---
 
-Otomatik Tespit: Modern anti-hile sistemleri (Cfx.re AC, BattlEye, Easy Anti-Cheat), bellek manipülasyonlarını ve enjekte edilen kodları gerçek zamanlı olarak tarar.
-
-Global Banlar: Bu araç nedeniyle alınan bir ban, Global HWID (Donanım) Banı ile sonuçlanabilir; bu da kullanılan hesaptan bağımsız olarak o bilgisayarda oyunun tamamen oynanamaz hale gelmesi demektir.
-
-Destek Verilmez: Bu projenin geliştiricisi, ban itirazları veya donanım kısıtlamalarını aşma konusunda hiçbir destek SAĞLAMAYACAKTIR. Sadece tamamen izole edilmiş, çevrimdışı veya yerel sandbox ortamlarında kullanın.
-
-Bu projeyi çalıştırdığımda 14 günlük ban yedim.
+## 🛡️ How to Study Safely
+If you wish to study this code, do so **ONLY** in a fully isolated environment:
+* Disconnect your internet connection.
+* Use a secondary, non-linked computer if possible.
+* Never launch any multiplayer platform (FiveM, Steam, Rockstar Launcher) while this code is active.
