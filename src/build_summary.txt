@@ -1,0 +1,10 @@
+Gelistirme Ozeti:
+
+1. Moduler Mimari: Projek Core, Game, Features ve UI katmanlarina ayrildi.
+2. Build 3258 Uyumu: Dunya, ReplayInterface ve ViewMatrix offsetleri 3258 surumune gore guncellendi.
+3. ESP Fix: TextOutA ve WndProc imza uyusmazliklari Common.hpp ve Drawing.hpp yardimci siniflariyla giderildi.
+4. GDI Overlay: Oyun penceresiyle senkronize, saydam ve performansli cizim katmani kuruldu.
+5. CMake Yapilandirmasi: Tum moduller statik CRT (/MT) ve STRICT modda derlenecek sekilde optimize edildi.
+
+Cikti: build/Release/ModularEngine.dll
+Kullanim: INSERT (Menu), END (Unload)
