@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Console {
-    void Allocate();
-    void Free();
+namespace Dbg {
+    void Open();
+    void Close();
 }

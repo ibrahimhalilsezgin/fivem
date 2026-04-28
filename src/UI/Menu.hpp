@@ -2,14 +2,12 @@
 #include <windows.h>
 
 namespace UI {
-    class Menu {
+    class Wnd {
     public:
-        static void Initialize();
-        static void ToggleVisibility();
-        static void HandleInput(WPARAM wp);
-        static void Render(HDC hdc);
+        static void Init();
+        static void Toggle();
 
-        static bool IsOpen;
-        static HWND hMenu;
+        static bool bShow;
+        static HWND hW;
     };
 }

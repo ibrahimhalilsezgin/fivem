@@ -2,15 +2,15 @@
 #include "../Core/Memory.hpp"
 #include "../Game/Offsets.hpp"
 
-namespace Features {
-    class LocalPlayer {
+namespace Feat {
+    class LP {
     public:
-        static void Update();
+        static void Tick();
 
-        static bool GodMode;
-        static bool InfArmor;
+        static bool bGod;
+        static bool bArm;
 
     private:
-        static uintptr_t GetLocalPed();
+        static uintptr_t _GetPed();
     };
 }

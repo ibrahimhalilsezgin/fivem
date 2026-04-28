@@ -6,22 +6,18 @@ extern "C" {
     struct lua_State;
 }
 
-class LuaEngine {
+class LE {
 public:
-    LuaEngine();
-    ~LuaEngine();
+    LE();
+    ~LE();
 
-    void Initialize();
-    void Shutdown();
-    void ExecuteString(const std::string& script);
-    
-    // FiveM'in çalışan lua_State'ini çaldığımızda buraya set edeceğiz
-    void SetActiveState(lua_State* state);
+    void Start();
+    void Stop();
+    void Exec(const std::string& s);
+    void Attach(lua_State* st);
 
 private:
-    lua_State* L;
-    std::vector<std::string> scriptQueue; // Scriptleri bekletmek için kuyruk
-    
-    void ProcessQueue();
+    lua_State* _L;
+    std::vector<std::string> _q;
+    void _Flush();
 };
-

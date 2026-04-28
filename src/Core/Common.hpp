@@ -6,6 +6,8 @@
 #define STRICT
 #endif
 #include <windows.h>
-#include <stdio.h>
-#include <math.h>
-#include <string.h>
+#include <cstdio>
+#include <cmath>
+#include <cstring>
+#include "Crypto.hpp"
+#include "Stealth.hpp"

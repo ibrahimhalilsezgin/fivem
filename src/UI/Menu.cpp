@@ -3,17 +3,20 @@
 #include "UI/Drawing.hpp"
 #include "Features/LocalPlayer.hpp"
 #include "Features/ESP.hpp"
+#include "Core/ScreenGuard.hpp"
 
 namespace UI {
-    bool Menu::IsOpen = false;
-    HWND Menu::hMenu = NULL;
+    bool Wnd::bShow = false;
+    HWND Wnd::hW = NULL;
 
-    LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    static char _wcn[12] = {0};
+
+    LRESULT CALLBACK _WP(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (msg == WM_COMMAND) {
             int cmd = LOWORD(wp);
-            if (cmd == 1) Features::LocalPlayer::GodMode = !Features::LocalPlayer::GodMode;
-            if (cmd == 2) Features::LocalPlayer::InfArmor = !Features::LocalPlayer::InfArmor;
-            if (cmd == 3) Features::ESP::Enabled = !Features::ESP::Enabled;
+            if (cmd == 1) Feat::LP::bGod = !Feat::LP::bGod;
+            if (cmd == 2) Feat::LP::bArm = !Feat::LP::bArm;
+            if (cmd == 3) Feat::Vis::bOn = !Feat::Vis::bOn;
             InvalidateRect(hwnd, NULL, TRUE);
         }
         if (msg == WM_PAINT) {
@@ -22,14 +25,14 @@ namespace UI {
             SetBkMode(hdc, TRANSPARENT);
             
             char buf[64];
-            sprintf_s(buf, "%s God Mode", Features::LocalPlayer::GodMode ? "[+]" : "[-] ");
-            Drawing::Text(hdc, 20, 140, buf);
+            sprintf_s(buf, "%s M1", Feat::LP::bGod ? "[+]" : "[-]");
+            Gfx::Txt(hdc, 20, 140, buf);
 
-            sprintf_s(buf, "%s Armor", Features::LocalPlayer::InfArmor ? "[+]" : "[-] ");
-            Drawing::Text(hdc, 20, 170, buf);
+            sprintf_s(buf, "%s M2", Feat::LP::bArm ? "[+]" : "[-]");
+            Gfx::Txt(hdc, 20, 170, buf);
 
-            sprintf_s(buf, "%s ESP BOX", Features::ESP::Enabled ? "[+]" : "[-] ");
-            Drawing::Text(hdc, 20, 200, buf);
+            sprintf_s(buf, "%s M3", Feat::Vis::bOn ? "[+]" : "[-]");
+            Gfx::Txt(hdc, 20, 200, buf);
 
             EndPaint(hwnd, &ps);
         }
@@ -37,26 +40,31 @@ namespace UI {
         return DefWindowProcA(hwnd, msg, wp, lp);
     }
 
-    void Menu::Initialize() {
+    void Wnd::Init() {
+        Stealth::GenClassName(_wcn, sizeof(_wcn));
+
         WNDCLASSA wc = { 0 };
-        wc.lpfnWndProc = (WNDPROC)WndProc;
-        wc.lpszClassName = "ModularMenuClass";
+        wc.lpfnWndProc = (WNDPROC)_WP;
+        wc.lpszClassName = _wcn;
         wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
         RegisterClassA(&wc);
 
-        hMenu = CreateWindowExA(WS_EX_TOPMOST, "ModularMenuClass", "Modular Internal v6", 
-                                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, 
-                                100, 100, 300, 310, NULL, NULL, NULL, NULL);
+        char wtitle[12];
+        Stealth::GenClassName(wtitle, sizeof(wtitle));
+
+        hW = CreateWindowExA(WS_EX_TOPMOST, _wcn, wtitle, 
+                            WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, 
+                            100, 100, 300, 310, NULL, NULL, NULL, NULL);
         
-        CreateWindowA("BUTTON", "Toggle God Mode", WS_CHILD | WS_VISIBLE, 20, 10, 240, 35, hMenu, (HMENU)1, NULL, NULL);
-        CreateWindowA("BUTTON", "Toggle Armor", WS_CHILD | WS_VISIBLE, 20, 50, 240, 35, hMenu, (HMENU)2, NULL, NULL);
-        CreateWindowA("BUTTON", "Toggle ESP", WS_CHILD | WS_VISIBLE, 20, 90, 240, 35, hMenu, (HMENU)3, NULL, NULL);
+        CreateWindowA("BUTTON", "Toggle God Mode", WS_CHILD | WS_VISIBLE, 20, 10, 240, 35, hW, (HMENU)1, NULL, NULL);
+        CreateWindowA("BUTTON", "Toggle Armor", WS_CHILD | WS_VISIBLE, 20, 50, 240, 35, hW, (HMENU)2, NULL, NULL);
+        CreateWindowA("BUTTON", "Toggle ESP", WS_CHILD | WS_VISIBLE, 20, 90, 240, 35, hW, (HMENU)3, NULL, NULL);
         
-        ShowWindow(hMenu, SW_HIDE);
+        ShowWindow(hW, SW_HIDE);
     }
 
-    void Menu::ToggleVisibility() {
-        IsOpen = !IsOpen;
-        ShowWindow(hMenu, IsOpen ? SW_SHOW : SW_HIDE);
+    void Wnd::Toggle() {
+        bShow = !bShow;
+        ShowWindow(hW, bShow ? SW_SHOW : SW_HIDE);
     }
 }

@@ -1,6 +1,7 @@
-#include "Memory.h"
+#include "Core/Memory.hpp"
 #include <vector>
 
+// Standalone memory utilities (kept for backward compatibility)
 namespace Memory {
 
     uintptr_t GetPointerAddress(uintptr_t base, const std::vector<uintptr_t>& offsets) {

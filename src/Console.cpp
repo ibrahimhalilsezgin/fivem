@@ -1,26 +1,24 @@
 #include "Console.h"
 #include <Windows.h>
-#include <iostream>
 
-void Console::Allocate() {
+// Console allocation is intentionally stripped in release builds
+// No visible console = no detection surface
+
+void Dbg::Open() {
+#ifdef _DEBUG
     AllocConsole();
     FILE* fDummy;
     freopen_s(&fDummy, "CONOUT$", "w", stdout);
     freopen_s(&fDummy, "CONOUT$", "w", stderr);
     freopen_s(&fDummy, "CONIN$", "r", stdin);
-    
-    // Konsol penceresinin başlığını ayarlama
-    SetConsoleTitleA("Gelistirici Hata Ayiklama Konsolu");
-    
-    std::cout << "[+] Konsol basariyla ayrildi ve yonlendirildi." << std::endl;
+#endif
 }
 
-void Console::Free() {
-    std::cout << "[-] Konsol temizleniyor..." << std::endl;
-    FILE* fDummy;
-    freopen_s(&fDummy, "CONOUT$", "w", stdout);
+void Dbg::Close() {
+#ifdef _DEBUG
     fclose(stdout);
     fclose(stderr);
     fclose(stdin);
     FreeConsole();
+#endif
 }

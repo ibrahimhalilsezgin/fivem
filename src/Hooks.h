@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Hooks {
-    void Initialize();
-    void Shutdown();
+namespace Hk {
+    void Setup();
+    void Teardown();
 }

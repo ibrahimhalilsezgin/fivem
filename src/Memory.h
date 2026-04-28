@@ -4,10 +4,9 @@
 #include <vector>
 
 namespace Memory {
-    // Hafıza okuma/yazma şablonları
     template <typename T>
     T Read(uintptr_t address) {
-        if (address < 0x1000) return T(); // Geçersiz adres kontrolü
+        if (address < 0x1000) return T();
         return *reinterpret_cast<T*>(address);
     }
 
@@ -17,9 +16,6 @@ namespace Memory {
         *reinterpret_cast<T*>(address) = value;
     }
 
-    // Pointer zinciri okuma (Multi-level pointers)
     uintptr_t GetPointerAddress(uintptr_t base, const std::vector<uintptr_t>& offsets);
-
-    // Modül taban adresini alma
     uintptr_t GetModuleBase(const char* moduleName);
 }

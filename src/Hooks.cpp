@@ -1,160 +1,205 @@
 #include "Hooks.h"
 #include <Windows.h>
-#include <iostream>
 #include <vector>
-#include <string>
 #include <Psapi.h>
 #include "LuaEngine.h"
-#include "Offsets.h"
-#include "Memory.h"
+#include "Core/Memory.hpp"
+#include "Core/Crypto.hpp"
+#include "Core/Stealth.hpp"
+#include "Core/ModuleStomp.hpp"
+#include "Core/StackSpoof.hpp"
+#include "Core/ScreenGuard.hpp"
+#include "Game/Offsets.hpp"
+#include "Render/D3DRenderer.hpp"
 
-extern LuaEngine g_LuaEngine; // Global lua motorumuza erişim için
+extern LE g_le;
 
-// Gerçek projede MinHook kütüphanesini projeye dahil etmelisin.
-// #include "MinHook.h" 
-
-// --- MinHook sembolik tanımları (Derlenebilmesi için sahte tanımlar, projeye MinHook ekleyince bunları silin) ---
+// MinHook stub definitions (replace with real MinHook in production)
 #define MH_OK 0
 #define MH_ALL_HOOKS nullptr
 typedef int MH_STATUS;
 MH_STATUS MH_Initialize() { return MH_OK; }
 MH_STATUS MH_Uninitialize() { return MH_OK; }
-MH_STATUS MH_CreateHook(void* target, void* detour, void** original) { *original = target; return MH_OK; } // Sahte atama
+MH_STATUS MH_CreateHook(void* target, void* detour, void** original) { *original = target; return MH_OK; }
 MH_STATUS MH_EnableHook(void* target) { return MH_OK; }
 MH_STATUS MH_DisableHook(void* target) { return MH_OK; }
-// ---------------------------------------------------------------------------------------------------------
 
-// --- PATTERN SCANNER (Hafıza Tarayıcı) ---
-// Pattern'i byte array'e çeviren yardımcı fonksiyon
-std::vector<int> PatternToByte(const char* pattern) {
-    std::vector<int> bytes;
-    char* start = const_cast<char*>(pattern);
-    char* end = start + strlen(pattern);
+// ============================================================
+//  Pattern Scanner
+// ============================================================
 
-    for (char* current = start; current < end; ++current) {
-        if (*current == '?') {
-            ++current;
-            if (*current == '?') ++current; // Eger ?? yazildiysa
-            bytes.push_back(-1); // Wildcard
-        } else if (*current != ' ') { // Boşlukları atla
-            bytes.push_back(strtol(current, &current, 16));
+static std::vector<int> _PtoB(const char* p) {
+    std::vector<int> b;
+    char* s = const_cast<char*>(p);
+    char* e = s + strlen(p);
+    for (char* c = s; c < e; ++c) {
+        if (*c == '?') {
+            ++c;
+            if (*c == '?') ++c;
+            b.push_back(-1);
+        } else if (*c != ' ') {
+            b.push_back(strtol(c, &c, 16));
         }
     }
-    return bytes;
+    return b;
 }
 
-// Modül (DLL) içindeki hafızayı tarayan asıl fonksiyon
-void* FindPattern(const char* moduleName, const char* signature) {
-    HMODULE hModule = GetModuleHandleA(moduleName);
-    if (!hModule) {
-        std::cerr << "[-] " << moduleName << " modulu bulunamadi. (Oyun dogru mu veya DLL inject oldu mu?)" << std::endl;
-        return nullptr;
-    }
+static void* _Scan(const char* mod, const char* sig) {
+    HMODULE hm = GetModuleHandleA(mod);
+    if (!hm) return nullptr;
 
-    MODULEINFO moduleInfo;
-    GetModuleInformation(GetCurrentProcess(), hModule, &moduleInfo, sizeof(MODULEINFO));
+    MODULEINFO mi;
+    GetModuleInformation(GetCurrentProcess(), hm, &mi, sizeof(MODULEINFO));
 
-    uint8_t* moduleBase = (uint8_t*)moduleInfo.lpBaseOfDll;
-    size_t sizeOfImage = moduleInfo.SizeOfImage;
-    std::vector<int> patternBytes = PatternToByte(signature);
+    uint8_t* base = (uint8_t*)mi.lpBaseOfDll;
+    size_t sz = mi.SizeOfImage;
+    auto pat = _PtoB(sig);
+    size_t psz = pat.size();
+    auto d = pat.data();
 
-    size_t patternSize = patternBytes.size();
-    auto data = patternBytes.data();
-
-    // Hafızada baştan sona linear arama
-    for (size_t i = 0; i < sizeOfImage - patternSize; ++i) {
-        bool found = true;
-        for (size_t j = 0; j < patternSize; ++j) {
-            // Eğer wildcard ( -1 ) ise veya o anki memory bytı tutuyorsa devam et
-            if (data[j] != -1 && data[j] != moduleBase[i + j]) {
-                found = false;
+    for (size_t i = 0; i < sz - psz; ++i) {
+        bool ok = true;
+        for (size_t j = 0; j < psz; ++j) {
+            if (d[j] != -1 && d[j] != base[i + j]) {
+                ok = false;
                 break;
             }
         }
-        if (found) {
-            // Memory adresini döndür
-            return (void*)&moduleBase[i];
-        }
+        if (ok) return (void*)&base[i];
     }
     return nullptr;
 }
-// -----------------------------------------
 
-// 1. Hooklanacak Lua Fonksiyonunun Prototipi
-// Örnek: luaL_loadbuffer(lua_State *L, const char *buff, size_t sz, const char *name)
+// ============================================================
+//  Lua Hook - Trampoline stomped modülde
+// ============================================================
+
 struct lua_State;
-typedef int(__cdecl* luaL_loadbuffer_t)(lua_State*, const char*, size_t, const char*);
-luaL_loadbuffer_t pOriginalLoadBuffer = nullptr;
+typedef int(__cdecl* _lb_t)(lua_State*, const char*, size_t, const char*);
+_lb_t _pOrig = nullptr;
 
-// 2. Detour (Hook) Fonksiyonu
-int __cdecl Hooked_luaL_loadbuffer(lua_State* L, const char* buff, size_t sz, const char* name) {
-    // 1. ADIM: Gelen lua_State pointer'ını çalıp kendi motorumuza kaydediyoruz.
-    // Artık bu 'L' üzerinden kendi kodlarımızı FiveM içinden çalıştırabiliriz!
-    g_LuaEngine.SetActiveState(L);
-
-    std::cout << "[Hook] luaL_loadbuffer yakalandi! (Script Name: " << (name ? name : "Unknown") << ")" << std::endl;
-
-    // isterseniz gelen orjinal buff/script içeriğini burada engelleyebilir veya değiştirebilirsiniz
-    // return LUA_OK;
-
-    // 2. ADIM: Orijinal akışı bozmamak için gerçek fonksiyona devam et
-    if (pOriginalLoadBuffer) {
-        return pOriginalLoadBuffer(L, buff, sz, name);
-    }
+int __cdecl _Detour(lua_State* L, const char* buf, size_t sz, const char* name) {
+    g_le.Attach(L);
+    if (_pOrig) return _pOrig(L, buf, sz, name);
     return 0;
 }
 
-void Hooks::Initialize() {
-    std::cout << "[+] MinHook baslatiliyor..." << std::endl;
-    
-    if (MH_Initialize() != MH_OK) {
-        std::cerr << "[-] MinHook baslatilamadi!" << std::endl;
-        return;
-    }
+// Encrypted signature
+static constexpr uint8_t _SIG_KEY = 0x5A;
+static const char _ENC_PAT[] = {
+    '4'^_SIG_KEY, '8'^_SIG_KEY, ' '^_SIG_KEY, '8'^_SIG_KEY, '9'^_SIG_KEY, ' '^_SIG_KEY,
+    '5'^_SIG_KEY, 'C'^_SIG_KEY, ' '^_SIG_KEY, '2'^_SIG_KEY, '4'^_SIG_KEY, ' '^_SIG_KEY,
+    '?'^_SIG_KEY, ' '^_SIG_KEY, '4'^_SIG_KEY, '8'^_SIG_KEY, ' '^_SIG_KEY, '8'^_SIG_KEY,
+    '9'^_SIG_KEY, ' '^_SIG_KEY, '7'^_SIG_KEY, '4'^_SIG_KEY, ' '^_SIG_KEY, '2'^_SIG_KEY,
+    '4'^_SIG_KEY, ' '^_SIG_KEY, '?'^_SIG_KEY, ' '^_SIG_KEY, '5'^_SIG_KEY, '7'^_SIG_KEY,
+    ' '^_SIG_KEY, '4'^_SIG_KEY, '8'^_SIG_KEY, ' '^_SIG_KEY, '8'^_SIG_KEY, '3'^_SIG_KEY,
+    ' '^_SIG_KEY, 'E'^_SIG_KEY, 'C'^_SIG_KEY, ' '^_SIG_KEY, '3'^_SIG_KEY, '0'^_SIG_KEY,
+    ' '^_SIG_KEY, '4'^_SIG_KEY, 'C'^_SIG_KEY, ' '^_SIG_KEY, '8'^_SIG_KEY, 'B'^_SIG_KEY,
+    ' '^_SIG_KEY, 'C'^_SIG_KEY, '2'^_SIG_KEY, ' '^_SIG_KEY, '4'^_SIG_KEY, '9'^_SIG_KEY,
+    ' '^_SIG_KEY, '8'^_SIG_KEY, 'B'^_SIG_KEY, ' '^_SIG_KEY, 'D'^_SIG_KEY, '8'^_SIG_KEY,
+    ' '^_SIG_KEY, '4'^_SIG_KEY, '8'^_SIG_KEY, ' '^_SIG_KEY, '8'^_SIG_KEY, 'B'^_SIG_KEY,
+    ' '^_SIG_KEY, 'F'^_SIG_KEY, 'A'^_SIG_KEY, ' '^_SIG_KEY, '4'^_SIG_KEY, '8'^_SIG_KEY,
+    ' '^_SIG_KEY, '8'^_SIG_KEY, 'B'^_SIG_KEY, ' '^_SIG_KEY, 'F'^_SIG_KEY, '1'^_SIG_KEY,
+    0 ^ _SIG_KEY
+};
 
-    // FiveM modülü var mı kontrol et (Zaman aşımıyla)
-    bool isFiveM = false;
-    std::cout << "[*] Modul kontrolu yapiliyor..." << std::endl;
-    for (int i = 0; i < 10; ++i) { // 5 saniye bekle
-        if (GetModuleHandleA("citizen-scripting-lua.dll")) {
-            isFiveM = true;
+static std::string _DecryptPat() {
+    std::string r;
+    r.reserve(sizeof(_ENC_PAT));
+    for (size_t i = 0; i < sizeof(_ENC_PAT); i++) {
+        char c = _ENC_PAT[i] ^ _SIG_KEY;
+        if (c == 0) break;
+        r += c;
+    }
+    return r;
+}
+
+// ============================================================
+//  Ana Setup - Tüm anti-detection katmanları burada başlatılır
+// ============================================================
+
+void Hk::Setup() {
+    // [KATMAN 1] Anti-debug kontrolü
+    if (Stealth::IsBeingDebugged()) return;
+
+    // [KATMAN 2] Module Stomping - kayıtsız bellek sorununu çözer
+    // Meşru bir DLL'in .text bölümünü hollow eder
+    // Tüm hook trampoline'ları bu modülün adres alanında çalışır
+    // → FiveM'in "unbacked executable memory" taramasını aşar
+    Stomp::Initialize();
+
+    // [KATMAN 3] Call Stack Spoofing hazırlığı
+    // ntdll.dll'de ROP gadget'lar bulur
+    // Timer/ThreadPool tabanlı yürütme için altyapı kurar
+    // → FiveM'in "call stack walking" analizini aşar
+    StackSpoof::Initialize();
+
+    // [KATMAN 4] MinHook başlat
+    if (MH_Initialize() != MH_OK) return;
+
+    // Hedef modül ismini runtime'da çöz
+    XC("citizen-scripting-lua.dll", modName);
+
+    bool isFM = false;
+    for (int i = 0; i < 10; ++i) {
+        if (GetModuleHandleA(modName)) {
+            isFM = true;
             break;
         }
         Sleep(500);
     }
 
-    if (isFiveM) {
-        std::cout << "[+] FiveM modu tespit edildi! Lua hook'lari kuruluyor..." << std::endl;
-        const char* pattern = "48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC 30 4C 8B C2 49 8B D8 48 8B FA 48 8B F1";
-        void* targetAddress = FindPattern("citizen-scripting-lua.dll", pattern); 
-        
-        if (targetAddress != nullptr) {
-            std::cout << "[+] luaL_loadbuffer BAŞARIYLA BULUNDU! Adres: " << targetAddress << std::endl;
-            if (MH_CreateHook(targetAddress, &Hooked_luaL_loadbuffer, reinterpret_cast<void**>(&pOriginalLoadBuffer)) == MH_OK) {
-                std::cout << "[+] luaL_loadbuffer hook'u basariyla yaratildi." << std::endl;
+    if (isFM) {
+        std::string pat = _DecryptPat();
+        void* addr = _Scan(modName, pat.c_str());
+        SecureZeroMemory(&pat[0], pat.size());
+
+        if (addr) {
+            // [KATMAN 5] Hook trampoline'ı stomped modüle yerleştir
+            // Detour fonksiyonuna JMP stub stomped modülde olduğu için
+            // call stack walking'de meşru modül adresi görünür
+            if (Stomp::g_cave.valid) {
+                // Detour'un trampoline'ını stomped modüle koy
+                void* stompedDetour = Stomp::CreateTrampoline((void*)&_Detour);
+                if (stompedDetour) {
+                    MH_CreateHook(addr, stompedDetour, reinterpret_cast<void**>(&_pOrig));
+                } else {
+                    MH_CreateHook(addr, &_Detour, reinterpret_cast<void**>(&_pOrig));
+                }
+            } else {
+                MH_CreateHook(addr, &_Detour, reinterpret_cast<void**>(&_pOrig));
             }
-        } else {
-            std::cerr << "[-] luaL_loadbuffer PATTERN BULUNAMADI! (FiveM guncellenmis olabilir)" << std::endl;
         }
-    } else {
-        std::cout << "[*] Normal GTA 5 modu tespit edildi (veya FiveM henuz hazir degil)." << std::endl;
-        std::cout << "[*] Lua Executor devre disi, ancak Hafiza offsetleri aktif!" << std::endl;
     }
 
-    // Offset ve Sürüm Kontrolü
-    uintptr_t base = Memory::GetModuleBase(nullptr); // Mevcut exe'nin base'ini al (GTA5.exe veya FiveM)
-    if (!Offsets::Initialize(base)) {
-        std::cerr << "[-] Offsetler yuklenemedi! Bazi ozellikler calismayabilir." << std::endl;
-    }
+    // [KATMAN 6] Offset resolver
+    uintptr_t base = Core::Mem::Base();
+    Cfg::Resolve(base);
 
-    // Oluşturulan tüm hookları aktifleştir
-    if (MH_EnableHook(MH_ALL_HOOKS) == MH_OK) {
-        std::cout << "[+] Tum hook'lar aktiflestirildi." << std::endl;
-    }
+    // [KATMAN 7] D3D11 SwapChain VMT Hook
+    // Harici overlay penceresi OLUŞTURMAZ
+    // Doğrudan oyunun DirectX pipeline'ına hook atar
+    // VMT hook = data patch, code integrity taramalarından kaçar
+    // → FiveM'in overlay window ve render hook tespitini aşar
+    //
+    // NOT: SwapChain'i bulmak için pattern scan gerekir
+    // Gerçek implementasyonda bu pattern kullanılır:
+    // "48 8B 05 ?? ?? ?? ?? 48 8B 88 ?? ?? ?? ?? 48 85 C9"
+    //
+    // Şimdilik D3D draw callback'i Overlay.cpp'de ayarlanır
+
+    MH_EnableHook(MH_ALL_HOOKS);
 }
 
-void Hooks::Shutdown() {
-    std::cout << "[-] Hook'lar devre disi birakiliyor ve temizleniyor..." << std::endl;
+void Hk::Teardown() {
+    // D3D cleanup
+    Render::CleanupRenderStates();
+    Render::Shutdown();
+
+    // Module stomp cleanup
+    Stomp::Shutdown();
+
+    // Hook cleanup
     MH_DisableHook(MH_ALL_HOOKS);
     MH_Uninitialize();
 }

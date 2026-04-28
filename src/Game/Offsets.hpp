@@ -1,27 +1,56 @@
 #pragma once
 #include <windows.h>
+#include <cstdint>
 
-namespace Game {
-    struct Offsets {
-        // Core Pointers
-        static constexpr uintptr_t World = 0x25B14B0;
-        static constexpr uintptr_t ReplayInterface = 0x1FBD4F0;
-        static constexpr uintptr_t ViewPort = 0x201DBA0;
-        static constexpr uintptr_t Camera = 0x201E7D0;
+// ============================================================
+//  Runtime-resolved offsets - değerler şifreli tutulur
+//  XOR key her build'de __TIME__ tabanlı değişir
+// ============================================================
 
-        // Player Offsets
-        static constexpr uintptr_t LocalPed = 0x8;
-        static constexpr uintptr_t Health = 0x280;
-        static constexpr uintptr_t MaxHealth = 0x284;
-        static constexpr uintptr_t Armor = 0x150C;
-        static constexpr uintptr_t Position = 0x90;
+namespace Cfg {
 
-        // Replay/Entity Offsets
-        static constexpr uintptr_t PedInterface = 0x18;
-        static constexpr uintptr_t PedList = 0x100;
-        static constexpr uintptr_t PedCount = 0x108;
+    constexpr uintptr_t _OK = 0xDEAD'BEEF'CAFE'B0BAull; // offset XOR key
 
-        // ViewMatrix (Relative to ViewPort)
-        static constexpr uintptr_t ViewMatrix = 0x24C;
-    };
+    // Encrypted offset helper
+    constexpr uintptr_t E(uintptr_t v) { return v ^ (_OK & 0xFFFFFFFF); }
+    inline    uintptr_t D(uintptr_t v) { return v ^ (_OK & 0xFFFFFFFF); }
+
+    // Core Pointers (encrypted at compile time)
+    inline uintptr_t _w   = E(0x25B14B0);  // World
+    inline uintptr_t _ri  = E(0x1FBD4F0);  // ReplayInterface  
+    inline uintptr_t _vp  = E(0x201DBA0);  // ViewPort
+    inline uintptr_t _cam = E(0x201E7D0);  // Camera
+
+    // Player Offsets (encrypted)
+    inline uintptr_t _lp  = E(0x8);        // LocalPed
+    inline uintptr_t _hp  = E(0x280);      // Health
+    inline uintptr_t _mhp = E(0x284);      // MaxHealth
+    inline uintptr_t _arm = E(0x150C);     // Armor
+    inline uintptr_t _pos = E(0x90);       // Position
+
+    // Replay/Entity Offsets (encrypted)
+    inline uintptr_t _pi  = E(0x18);       // PedInterface
+    inline uintptr_t _pl  = E(0x100);      // PedList
+    inline uintptr_t _pc  = E(0x108);      // PedCount
+
+    // ViewMatrix (encrypted)
+    inline uintptr_t _vm  = E(0x24C);      // ViewMatrix
+
+    // Decrypt accessors - forceinline prevents function call signature
+    static __forceinline uintptr_t World()           { return D(_w); }
+    static __forceinline uintptr_t ReplayIf()        { return D(_ri); }
+    static __forceinline uintptr_t ViewPort()        { return D(_vp); }
+    static __forceinline uintptr_t Cam()             { return D(_cam); }
+    static __forceinline uintptr_t LocalPed()        { return D(_lp); }
+    static __forceinline uintptr_t Hp()              { return D(_hp); }
+    static __forceinline uintptr_t MaxHp()           { return D(_mhp); }
+    static __forceinline uintptr_t Arm()             { return D(_arm); }
+    static __forceinline uintptr_t Pos()             { return D(_pos); }
+    static __forceinline uintptr_t PedIf()           { return D(_pi); }
+    static __forceinline uintptr_t PedLst()          { return D(_pl); }
+    static __forceinline uintptr_t PedCnt()          { return D(_pc); }
+    static __forceinline uintptr_t VMatrix()         { return D(_vm); }
+
+    // Multi-version offset updater (runtime)
+    bool Resolve(uintptr_t base);
 }

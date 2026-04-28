@@ -1,90 +1,130 @@
 #include "Overlay.hpp"
 #include "../Features/ESP.hpp"
+#include "../Core/Stealth.hpp"
+#include "../Core/Crypto.hpp"
+#include "../Core/ScreenGuard.hpp"
+#include "../Render/D3DRenderer.hpp"
 
 namespace UI {
-    HWND Overlay::hOverlay = NULL;
-    int Overlay::ScreenW = 1920;
-    int Overlay::ScreenH = 1080;
+    HWND Ovl::hO = NULL;
+    int Ovl::sW = 1920;
+    int Ovl::sH = 1080;
+    bool Ovl::bUseInternal = true; // Default: D3D internal rendering
 
-    LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-        return DefWindowProcA(hwnd, msg, wp, lp);
-    }
+    // --------------------------------------------------------
+    //  INTERNAL RENDERING PATH (D3D11 VMT Hook)
+    //  Harici pencere oluşturmaz, doğrudan oyunun
+    //  render pipeline'ında çizer.
+    //  FiveM overlay window tespitini tamamen aşar.
+    // --------------------------------------------------------
 
-    void Overlay::Initialize() {
+    void Ovl::Init() {
+        // Screenshot korumasını başlat
+        ScreenGuard::Initialize();
+
+        if (bUseInternal) {
+            // D3D11 internal rendering
+            // SwapChain hook'u Hooks.cpp'de module stomping ile kurulur
+            // Burada sadece draw callback'i kaydet
+            Render::g_drawCb = &Render::OnFrame;
+            return;
+        }
+
+        // --------------------------------------------------------
+        //  FALLBACK: External overlay (sadece D3D bulunamazsa)
+        //  Ama screenshot koruması + display affinity ile
+        // --------------------------------------------------------
+
+        static char _ocn[12] = {0};
+        Stealth::GenClassName(_ocn, sizeof(_ocn));
+
         WNDCLASSA wc = { 0 };
-        wc.lpfnWndProc = (WNDPROC)OverlayWndProc;
-        wc.lpszClassName = "ModularOverlayClass";
+        wc.lpfnWndProc = DefWindowProcA;
+        wc.lpszClassName = _ocn;
         wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
         RegisterClassA(&wc);
 
-        hOverlay = CreateWindowExA(WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW,
-                                    "ModularOverlayClass", "", WS_POPUP,
-                                    0, 0, ScreenW, ScreenH, NULL, NULL, NULL, NULL);
+        hO = CreateWindowExA(
+            WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            _ocn, "", WS_POPUP,
+            0, 0, sW, sH, NULL, NULL, NULL, NULL
+        );
 
-        SetLayeredWindowAttributes(hOverlay, RGB(0, 0, 0), 0, LWA_COLORKEY);
-        ShowWindow(hOverlay, SW_SHOW);
+        Stealth::g_api.Init();
+        if (Stealth::g_api.pSetLayered) {
+            Stealth::g_api.pSetLayered(hO, RGB(0, 0, 0), 0, LWA_COLORKEY);
+        } else {
+            SetLayeredWindowAttributes(hO, RGB(0, 0, 0), 0, LWA_COLORKEY);
+        }
+
+        ShowWindow(hO, SW_SHOW);
     }
 
-    void Overlay::Update() {
-        HWND gameWnd = FindWindowA("grcWindow", NULL);
-        if (gameWnd) {
+    void Ovl::Sync() {
+        if (bUseInternal) return; // Internal modda sync gerekmez
+
+        XC("grcWindow", gwc);
+
+        Stealth::g_api.Init();
+        HWND gw = nullptr;
+        if (Stealth::g_api.pFindWindowA) {
+            gw = Stealth::g_api.pFindWindowA(gwc, NULL);
+        } else {
+            gw = FindWindowA(gwc, NULL);
+        }
+
+        if (gw) {
             RECT r;
-            GetWindowRect(gameWnd, &r);
-            SetWindowPos(hOverlay, HWND_TOPMOST, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOACTIVATE);
-            ScreenW = r.right - r.left;
-            ScreenH = r.bottom - r.top;
+            GetWindowRect(gw, &r);
+            SetWindowPos(hO, HWND_TOPMOST, r.left, r.top, 
+                        r.right - r.left, r.bottom - r.top, SWP_NOACTIVATE);
+            sW = r.right - r.left;
+            sH = r.bottom - r.top;
         }
     }
 
-    class Drawing {
-    public:
-        static void Text(HDC hdc, int x, int y, const char* text) {
-            if (!text) return;
-            // Draw text with shadow for better visibility
-            SetTextColor(hdc, RGB(0, 0, 0));
-            ::TextOutA(hdc, x + 1, y + 1, (LPCSTR)text, (int)strlen(text));
-            SetTextColor(hdc, RGB(0, 255, 0));
-            ::TextOutA(hdc, x, y, (LPCSTR)text, (int)strlen(text));
-        }
+    void Ovl::Paint() {
+        if (bUseInternal) return; // D3D Present hook handle eder
 
-        static void Box(HDC hdc, int x, int y, int w, int h, COLORREF color) {
-            HPEN hPen = CreatePen(PS_SOLID, 2, color);
-            HPEN hOld = (HPEN)SelectObject(hdc, hPen);
-            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
-            
-            ::Rectangle(hdc, x, y, x + w, y + h);
+        // Screenshot sırasında çizme
+        if (!ScreenGuard::CanDraw()) return;
 
-            SelectObject(hdc, hOldBrush);
-            SelectObject(hdc, hOld);
-            DeleteObject(hPen);
-        }
-    };
-
-    void Overlay::Render() {
-        HDC hdc = GetDC(hOverlay);
+        if (!hO) return;
+        HDC hdc = GetDC(hO);
         if (!hdc) return;
 
         RECT rc;
-        GetClientRect(hOverlay, &rc);
+        GetClientRect(hO, &rc);
 
-        // --- Double Buffering (Memory DC) ---
         HDC memDC = CreateCompatibleDC(hdc);
-        HBITMAP hBitmap = CreateCompatibleBitmap(hdc, ScreenW, ScreenH);
+        HBITMAP hBitmap = CreateCompatibleBitmap(hdc, sW, sH);
         HBITMAP hOldBitmap = (HBITMAP)SelectObject(memDC, hBitmap);
 
-        // Clear Memory DC
         FillRect(memDC, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
 
-        // Let ESP module draw to Memory DC
-        Features::ESP::Render(memDC, ScreenW, ScreenH);
+        Feat::Vis::Draw(memDC, sW, sH);
 
-        // Blit to screen in ONE pass (No flickering)
-        BitBlt(hdc, 0, 0, ScreenW, ScreenH, memDC, 0, 0, SRCCOPY);
+        BitBlt(hdc, 0, 0, sW, sH, memDC, 0, 0, SRCCOPY);
 
-        // Cleanup
         SelectObject(memDC, hOldBitmap);
         DeleteObject(hBitmap);
         DeleteDC(memDC);
-        ReleaseDC(hOverlay, hdc);
+        ReleaseDC(hO, hdc);
+    }
+
+    // Screenshot koruması: overlay'i gizle
+    void Ovl::Hide() {
+        if (bUseInternal) {
+            // D3D modunda: ScreenGuard::CanDraw() false döner
+            // Present hook çizim yapmaz
+            return;
+        }
+        if (hO) ShowWindow(hO, SW_HIDE);
+    }
+
+    // Screenshot sonrası: overlay'i göster
+    void Ovl::Show() {
+        if (bUseInternal) return;
+        if (hO) ShowWindow(hO, SW_SHOW);
     }
 }

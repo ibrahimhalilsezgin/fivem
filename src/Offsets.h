@@ -2,8 +2,10 @@
 #include <cstdint>
 #include <string>
 
+// Legacy compatibility wrapper - redirects to Cfg namespace
+#include "Game/Offsets.hpp"
+
 namespace Offsets {
-    // Dinamik seçilecek offsetler
     inline uintptr_t GameBase = 0;
     inline uintptr_t GameWorld = 0;
     inline uintptr_t ReplayInterface = 0;
@@ -23,9 +25,6 @@ namespace Offsets {
     inline uintptr_t VisibleFlag = 0;
     inline uintptr_t Waypoint = 0;
 
-    // Versiyon Algılama Fonksiyonu
     bool Initialize(uintptr_t baseModule);
-    
-    // O anki oyun sürümünü tutar
     inline std::string CurrentVersion = "Unknown";
 }

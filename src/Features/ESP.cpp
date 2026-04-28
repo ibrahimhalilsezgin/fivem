@@ -2,71 +2,70 @@
 #include "Features/ESP.hpp"
 #include "UI/Drawing.hpp"
 
-namespace Features {
-    bool ESP::Enabled = false;
+namespace Feat {
+    bool Vis::bOn = false;
 
-    bool ESP::WorldToScreen(Vector3 pos, Vector2& screen, float* matrix, int sw, int sh) {
-        float w = matrix[3] * pos.x + matrix[7] * pos.y + matrix[11] * pos.z + matrix[15];
+    bool Vis::_W2S(V3 p, V2& s, float* m, int sw, int sh) {
+        float w = m[3] * p.x + m[7] * p.y + m[11] * p.z + m[15];
         if (w < 0.01f) return false;
 
-        float invw = 1.0f / w;
-        float x = (matrix[0] * pos.x + matrix[4] * pos.y + matrix[8] * pos.z + matrix[12]) * invw;
-        float y = (matrix[1] * pos.x + matrix[5] * pos.y + matrix[9] * pos.z + matrix[13]) * invw;
+        float iw = 1.0f / w;
+        float x = (m[0] * p.x + m[4] * p.y + m[8]  * p.z + m[12]) * iw;
+        float y = (m[1] * p.x + m[5] * p.y + m[9]  * p.z + m[13]) * iw;
 
-        screen.x = (sw / 2.0f) * (1.0f + x);
-        screen.y = (sh / 2.0f) * (1.0f - y);
+        s.x = (sw / 2.0f) * (1.0f + x);
+        s.y = (sh / 2.0f) * (1.0f - y);
         return true;
     }
 
-    void ESP::Render(HDC hdc, int sw, int sh) {
-        if (!Enabled) return;
+    void Vis::Draw(HDC hdc, int sw, int sh) {
+        if (!bOn) return;
 
-        uintptr_t base = Core::Memory::GetModuleBase();
-        uintptr_t vp = Core::Memory::Read<uintptr_t>(base + Game::Offsets::ViewPort);
+        uintptr_t base = Core::Mem::Base();
+        uintptr_t vp = Core::Mem::Rd<uintptr_t>(base + Cfg::ViewPort());
         if (!vp) return;
 
-        float matrix[16];
+        float mtx[16];
         for (int i = 0; i < 16; i++) {
-            matrix[i] = Core::Memory::Read<float>(vp + Game::Offsets::ViewMatrix + (i * 4));
+            mtx[i] = Core::Mem::Rd<float>(vp + Cfg::VMatrix() + (i * 4));
         }
 
-        uintptr_t replay = Core::Memory::Read<uintptr_t>(base + Game::Offsets::ReplayInterface);
-        uintptr_t pedInterface = Core::Memory::Read<uintptr_t>(replay + Game::Offsets::PedInterface);
-        uintptr_t pedList = Core::Memory::Read<uintptr_t>(pedInterface + Game::Offsets::PedList);
-        int maxPeds = Core::Memory::Read<int>(pedInterface + Game::Offsets::PedCount);
+        uintptr_t rp = Core::Mem::Rd<uintptr_t>(base + Cfg::ReplayIf());
+        uintptr_t pi = Core::Mem::Rd<uintptr_t>(rp + Cfg::PedIf());
+        uintptr_t pl = Core::Mem::Rd<uintptr_t>(pi + Cfg::PedLst());
+        int mc = Core::Mem::Rd<int>(pi + Cfg::PedCnt());
 
-        if (!pedList || maxPeds < 1) return;
+        if (!pl || mc < 1) return;
 
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, RGB(0, 255, 0));
 
-        uintptr_t localPed = 0;
-        uintptr_t world = Core::Memory::Read<uintptr_t>(base + Game::Offsets::World);
-        if (world) localPed = Core::Memory::Read<uintptr_t>(world + Game::Offsets::LocalPed);
+        uintptr_t myPed = 0;
+        uintptr_t world = Core::Mem::Rd<uintptr_t>(base + Cfg::World());
+        if (world) myPed = Core::Mem::Rd<uintptr_t>(world + Cfg::LocalPed());
 
-        for (int i = 0; i < (maxPeds > 128 ? 128 : maxPeds); i++) {
-            uintptr_t ped = Core::Memory::Read<uintptr_t>(pedList + (i * 0x10));
-            if (!ped || ped == localPed) continue;
+        int limit = mc > 128 ? 128 : mc;
+        for (int i = 0; i < limit; i++) {
+            uintptr_t ped = Core::Mem::Rd<uintptr_t>(pl + (i * 0x10));
+            if (!ped || ped == myPed) continue;
 
-            Vector3 pos;
-            pos.x = Core::Memory::Read<float>(ped + Game::Offsets::Position);
-            pos.y = Core::Memory::Read<float>(ped + Game::Offsets::Position + 4);
-            pos.z = Core::Memory::Read<float>(ped + Game::Offsets::Position + 8);
+            V3 pos;
+            pos.x = Core::Mem::Rd<float>(ped + Cfg::Pos());
+            pos.y = Core::Mem::Rd<float>(ped + Cfg::Pos() + 4);
+            pos.z = Core::Mem::Rd<float>(ped + Cfg::Pos() + 8);
 
-            Vector2 sFoot, sHead;
-            Vector3 headPos = { pos.x, pos.y, pos.z + 0.8f };
+            V2 sF, sH;
+            V3 hp = { pos.x, pos.y, pos.z + 0.8f };
 
-            if (WorldToScreen(pos, sFoot, matrix, sw, sh) && WorldToScreen(headPos, sHead, matrix, sw, sh)) {
-                float h = sFoot.y - sHead.y;
+            if (_W2S(pos, sF, mtx, sw, sh) && _W2S(hp, sH, mtx, sw, sh)) {
+                float h = sF.y - sH.y;
                 float w = h * 0.6f;
-                // Draw Box
-                UI::Drawing::Box(hdc, (int)(sHead.x - w / 2), (int)sHead.y, (int)w, (int)h, RGB(255, 0, 0));
-                
-                // Draw Health
+                UI::Gfx::Rect(hdc, (int)(sH.x - w / 2), (int)sH.y, (int)w, (int)h, RGB(255, 0, 0));
+
                 char buf[16];
-                int hpValue = (int)Core::Memory::Read<float>(ped + Game::Offsets::Health);
-                sprintf_s(buf, "%d HP", hpValue);
-                UI::Drawing::Text(hdc, (int)(sHead.x - 10), (int)(sHead.y - 15), buf);
+                int hpVal = (int)Core::Mem::Rd<float>(ped + Cfg::Hp());
+                sprintf_s(buf, "%d", hpVal);
+                UI::Gfx::Txt(hdc, (int)(sH.x - 10), (int)(sH.y - 15), buf);
             }
         }
     }

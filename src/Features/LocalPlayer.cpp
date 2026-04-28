@@ -1,27 +1,26 @@
 #include "LocalPlayer.hpp"
 
-namespace Features {
-    bool LocalPlayer::GodMode = false;
-    bool LocalPlayer::InfArmor = false;
+namespace Feat {
+    bool LP::bGod = false;
+    bool LP::bArm = false;
 
-    void LocalPlayer::Update() {
-        uintptr_t localPed = GetLocalPed();
-        if (!localPed) return;
+    void LP::Tick() {
+        uintptr_t ped = _GetPed();
+        if (!ped) return;
 
-        if (GodMode) {
-            Core::Memory::Write<float>(localPed + Game::Offsets::Health, 200.0f);
+        if (bGod) {
+            Core::Mem::Wr<float>(ped + Cfg::Hp(), 200.0f);
         }
 
-        if (InfArmor) {
-            Core::Memory::Write<float>(localPed + Game::Offsets::Armor, 200.0f);
+        if (bArm) {
+            Core::Mem::Wr<float>(ped + Cfg::Arm(), 200.0f);
         }
     }
 
-    uintptr_t LocalPlayer::GetLocalPed() {
-        uintptr_t base = Core::Memory::GetModuleBase();
-        uintptr_t world = Core::Memory::Read<uintptr_t>(base + Game::Offsets::World);
+    uintptr_t LP::_GetPed() {
+        uintptr_t base = Core::Mem::Base();
+        uintptr_t world = Core::Mem::Rd<uintptr_t>(base + Cfg::World());
         if (!world) return 0;
-
-        return Core::Memory::Read<uintptr_t>(world + Game::Offsets::LocalPed);
+        return Core::Mem::Rd<uintptr_t>(world + Cfg::LocalPed());
     }
 }
