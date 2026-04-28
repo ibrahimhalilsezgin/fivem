@@ -7,14 +7,33 @@
 
 #pragma pack(push, 1)
 struct Shellcode {
-    uint8_t sub_rsp[4] = { 0x48, 0x83, 0xEC, 0x28 }; // sub rsp, 28h
-    uint8_t mov_rcx[2] = { 0x48, 0xB9 };             // mov rcx, ...
+    uint8_t push_rax = 0x50;
+    uint8_t push_rcx = 0x51;
+    uint8_t push_rdx = 0x52;
+    uint8_t push_r8 = 0x41; uint8_t push_r8_b = 0x50;
+    uint8_t push_r9 = 0x41; uint8_t push_r9_b = 0x51;
+    uint8_t push_r10 = 0x41; uint8_t push_r10_b = 0x52;
+    uint8_t push_r11 = 0x41; uint8_t push_r11_b = 0x53;
+    uint8_t pushfq = 0x9C;
+
+    uint8_t sub_rsp[4] = { 0x48, 0x83, 0xEC, 0x28 }; // Shadow space + Alignment
+    uint8_t mov_rcx[2] = { 0x48, 0xB9 };
     uint64_t pString = 0;
-    uint8_t mov_rax[2] = { 0x48, 0xB8 };             // mov rax, ...
+    uint8_t mov_rax[2] = { 0x48, 0xB8 };
     uint64_t pLoadLibrary = 0;
-    uint8_t call_rax[2] = { 0xFF, 0xD0 };            // call rax
-    uint8_t add_rsp[4] = { 0x48, 0x83, 0xC4, 0x28 }; // add rsp, 28h
-    uint8_t jmp[2] = { 0xFF, 0x25 };                 // jmp [rip+0]
+    uint8_t call_rax[2] = { 0xFF, 0xD0 };
+    uint8_t add_rsp[4] = { 0x48, 0x83, 0xC4, 0x28 };
+
+    uint8_t popfq = 0x9D;
+    uint8_t pop_r11 = 0x41; uint8_t pop_r11_b = 0x5B;
+    uint8_t pop_r10 = 0x41; uint8_t pop_r10_b = 0x5A;
+    uint8_t pop_r9 = 0x41; uint8_t pop_r9_b = 0x59;
+    uint8_t pop_r8 = 0x41; uint8_t pop_r8_b = 0x58;
+    uint8_t pop_rdx = 0x5A;
+    uint8_t pop_rcx = 0x59;
+    uint8_t pop_rax = 0x58;
+
+    uint8_t jmp[2] = { 0xFF, 0x25 };
     uint32_t zero = 0;
     uint64_t retAddr = 0;
 };

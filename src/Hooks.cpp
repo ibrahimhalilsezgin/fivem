@@ -75,12 +75,12 @@ static void* _Scan(const char* mod, const char* sig) {
 // ============================================================
 
 struct lua_State;
-typedef int(__cdecl* _lb_t)(lua_State*, const char*, size_t, const char*);
+typedef int(__cdecl* _lb_t)(lua_State*, const char*, size_t, const char*, const char*);
 _lb_t _pOrig = nullptr;
 
-int __cdecl _Detour(lua_State* L, const char* buf, size_t sz, const char* name) {
+int __cdecl _Detour(lua_State* L, const char* buf, size_t sz, const char* name, const char* mode) {
     g_le.Attach(L);
-    if (_pOrig) return _pOrig(L, buf, sz, name);
+    if (_pOrig) return _pOrig(L, buf, sz, name, mode);
     return 0;
 }
 

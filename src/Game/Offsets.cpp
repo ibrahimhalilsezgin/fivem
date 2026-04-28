@@ -79,7 +79,7 @@ namespace Cfg {
         {
             VerSet v;
             v.gw = E(0x25B14B0); v.ri = E(0x1FBD4F0); v.vp = E(0x201DBA0); v.cam = E(0x201E7D0);
-            v.bl = E(0x2002FA0); v.lp = E(0x8); v.pinfo = E(0x10A8); v.id = E(0xE8);
+            v.bl = E(0x20224C0); v.lp = E(0x8); v.pinfo = E(0x10A8); v.id = E(0xE8);
             v.hp = E(0x280); v.mhp = E(0x284); v.arm = E(0x150C); v.wm = E(0x10B8);
             v.bone = E(0x410); v.sil = E(0x101A65D); v.veh = E(0xD10); v.vflag = E(0x145C);
             v.wp = E(0x2023400); v.pedIf = E(0x18); v.pedLst = E(0x100); v.pedCnt = E(0x108);
@@ -91,7 +91,7 @@ namespace Cfg {
         {
             VerSet v;
             v.gw = E(0x2593320); v.ri = E(0x1F58B58); v.vp = E(0x20019E0); v.cam = E(0x20025B8);
-            v.bl = E(0x2002888); v.lp = E(0x8); v.pinfo = E(0x10A8); v.id = E(0xE8);
+            v.bl = E(0x2002FA0); v.lp = E(0x8); v.pinfo = E(0x10A8); v.id = E(0xE8);
             v.hp = E(0x280); v.mhp = E(0x284); v.arm = E(0x150C); v.wm = E(0x10B8);
             v.bone = E(0x410); v.sil = E(0x100F5A4); v.veh = E(0xD10); v.vflag = E(0x145C);
             v.wp = E(0x2002FA0); v.pedIf = E(0x18); v.pedLst = E(0x100); v.pedCnt = E(0x108);
